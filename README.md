@@ -9,7 +9,8 @@ Simple implementation of my favorite childhood game using PubNub and HTML5 Canva
 4. Refresh both pages to restart
 
 *There can only be two index.html windows open at a time*
-*Get your own API Key*
+
+*Get your own PubNub API Key*
 
 ![Demo](https://raw.githubusercontent.com/seowyanyi/Gunbound/master/gunbound.gif)
 
