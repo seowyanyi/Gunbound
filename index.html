@@ -1,0 +1,218 @@
+<html>
+    <body>
+        <script src="http://cdn.pubnub.com/pubnub-3.15.2.min.js"></script>
+        <canvas id="canvas"></canvas>
+    </body>
+</html>
+
+<script>
+var canvas = document.getElementById("canvas");
+var ctx = canvas.getContext("2d");
+var reverse = false
+
+canvas.width = 750;
+canvas.height = 500;
+var RIGHTMOST_POS = 550
+var BALL_RADIUS = 30
+
+var me = {
+    x: 50,
+    y: 300
+}
+
+var opponent = {
+    x: 50,
+    y: 300
+}
+
+var myUUID = new Date().getTime()
+var opponentUUID = -1
+var velocity = 0
+var isActive = false
+
+var CHANNEL = 'yan_yi_pub_nub_demo'
+var TYPE_HANDSHAKE = 'HANDSHAKE'
+var TYPE_ATTACK = 'ATTACK'
+var TYPE_ACK = 'ACK'
+
+
+initPubNub()
+draw()
+
+function initPubNub() {
+    // GET YOUR OWN KEYS
+    pubnub = PUBNUB({
+        publish_key : 'demo', 
+        subscribe_key : 'demo',
+        uuid: myUUID
+    })
+
+    pubnub.subscribe({                                     
+    channel : CHANNEL,
+    message : function (message, envelope, channelOrGroup, time, channel) {     
+        switch (message.type) {
+            case TYPE_HANDSHAKE:
+                if (message.opponent === myUUID && message.sender !== myUUID) {
+                    publish({type: TYPE_ACK, sender: myUUID, receiver: message.sender})                    
+                } 
+                break;
+            case TYPE_ACK:
+                if (message.receiver === myUUID) {
+                    opponentUUID = message.sender
+                    startgame()                    
+                }
+                break;
+            case TYPE_ATTACK:
+                if (message.sender !== myUUID) {
+                    plotTrajectory(opponent.x, opponent.y, message.data, projectileLanded)                    
+                }
+                break;
+            default:
+                console.error(message)
+        }
+    },
+    presence: function(m) {
+        var receivedUUID = parseInt(m.uuid, 10)
+        if (receivedUUID !== myUUID && m.action === 'join') {
+            publish({type: TYPE_HANDSHAKE, sender: myUUID, opponent: receivedUUID})
+        }
+        }
+    })
+
+}
+
+
+function startgame() {
+    document.addEventListener("keydown", keyDownHandler, false);
+    document.addEventListener("keyup", keyUpHandler, false);
+    if (myUUID > opponentUUID) {
+        opponent.x = RIGHTMOST_POS        
+        isActive = true
+    } else {
+        me.x = RIGHTMOST_POS
+        reverse = true
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function publish(message) {
+    pubnub.publish({
+        channel : CHANNEL,
+        message : message,
+    })
+}
+
+function sendVelocityToOpponent(velocity) {
+    publish({type: TYPE_ATTACK, data: velocity, sender: myUUID})    
+}
+
+function keyDownHandler(e) {
+    if(e.keyCode == 32 && isActive) {
+        reverse ? velocity -= 1 : velocity += 1
+        ctx.fillStyle = "blue";
+        ctx.fillRect(100, canvas.height-50, Math.abs(velocity*20), 25);
+
+    }
+}
+
+function keyUpHandler(e) {
+    if(e.keyCode == 32 && isActive) {
+        sendVelocityToOpponent(velocity)
+        plotTrajectory(me.x, me.y, velocity, projectileLanded)
+        velocity = 0
+    }
+}
+
+function hitsBall(x1, x2) {
+    return Math.abs(x1-x2) <= BALL_RADIUS*2
+}
+
+function projectileLanded(x, y) {
+    if (isActive && hitsBall(x, opponent.x)) {
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "blue";
+        ctx.fillText('YOU WON!', canvas.width/2-100, 100);
+        pubnub.unsubscribe({
+            channel: CHANNEL
+        })
+    } else if (!isActive && hitsBall(x, me.x)) {
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "red";
+        ctx.fillText('YOU LOST!', canvas.width/2-100, 100);
+        pubnub.unsubscribe({
+            channel: CHANNEL
+        })     
+    } else {
+        isActive = !isActive;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+}
+
+function draw() {
+    drawMe();
+    drawOpponent();
+    drawTurn();
+    requestAnimationFrame(draw);
+}
+
+function drawMe() {
+    ctx.beginPath();
+    ctx.arc(me.x, me.y, BALL_RADIUS, 0, Math.PI*2);
+    ctx.fillStyle = "#0095DD";
+    ctx.fill();
+    ctx.closePath();
+}
+  
+function drawTurn() {
+    ctx.font = "20px Arial";
+    var text = 'Waiting for opponent...'
+    ctx.fillStyle = "blue";
+    if (opponentUUID > -1) {
+        if (!isActive) {
+            text = "Opponent's turn"
+            ctx.fillStyle = "red";
+        } else {
+            text = 'YOUR TURN'
+        }        
+    }
+    ctx.fillText(text, canvas.width/2-50, 20);
+}
+
+function drawOpponent() {
+    ctx.beginPath();
+    ctx.arc(opponent.x, opponent.y, BALL_RADIUS, 0, Math.PI*2);
+    ctx.fillStyle = "#FF0000";
+    ctx.fill();
+    ctx.closePath();
+}
+
+function plotTrajectory(x1, y1, xVel, callback) {
+    var yVel = -20;
+    var g = 1;
+    var x = x1;
+    var y = y1;
+    var oldX = x1;
+    var oldY = y1;
+
+    var myInterval = setInterval(function () {
+        x += xVel;      
+        y+=yVel;
+        yVel+=g;
+        ctx.beginPath();
+        ctx.moveTo(oldX,oldY);
+        ctx.lineTo(x,y);
+        ctx.stroke();
+        ctx.lineWidth = 5;
+        ctx.setLineDash([5, 15]);
+        oldX = x;
+        oldY = y;
+      
+        if (y >= y1) {
+            clearInterval(myInterval)
+            callback(x, y)
+        }
+
+    },50);    
+}
+
+</script>
