@@ -10,7 +10,7 @@ Simple implementation of my favorite childhood game using PubNub and HTML5 Canva
 
 *There can only be two index.html windows open at a time*
 
-*Get your own PubNub API Key*
+*Get your own PubNub API Key with Presence enabled*
 
 ![Demo](https://raw.githubusercontent.com/seowyanyi/Gunbound/master/gunbound.gif)
 
